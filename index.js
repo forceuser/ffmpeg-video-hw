@@ -134,8 +134,8 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
         "-write_tmcd", 0,
         "-ignore_editlist", 1,
         "-fflags", "+igndts",        
-        // "-fps_mode", "vfr",
-        "-vsync", "2",
+        "-fps_mode", "vfr",
+        // "-vsync", "2",
         "-y",
         target,
     ]);
@@ -143,6 +143,8 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
 
 
 async function main () {
+    const targetDir = nodePath.resolve("../target");
+    const srcDir = nodePath.resolve("../src");
     const argv =  process.argv.slice(2);
     const hwArg = argv.indexOf("--hardware");
     const hardware = hwArg !== -1 ? argv[hwArg + 1] : false;
@@ -151,15 +153,16 @@ async function main () {
 
     const startTime = performance.now();
     let src = [
-        "ex_1_0.webm",
-        "ex_1_1.webm",
+        // "ex_1_0.webm",
+        // "ex_1_1.webm",
+        "example.webm",
     ];
     let videos = [];
     await src.reduce(async (prev, src) => {
         await prev;
         const fixedName = (name) => [...name.split(".").slice(0, -1), "fixed", hardware, name.split(".").slice(-1)[0]].join(".");
-        const targetFixed = nodePath.resolve("./target", fixedName(src));        
-        await fixVideo(nodePath.resolve("./src/", src), targetFixed);   
+        const targetFixed = nodePath.resolve(targetDir, fixedName(src));        
+        await fixVideo(nodePath.resolve(srcDir, src), targetFixed);   
         videos.push(targetFixed);
     }, null);
     
