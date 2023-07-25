@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "ffmpeg-static": "^5.1.0",
     "format-duration": "^3.0.2",
     "fs-extra": "^11.1.1"
   }

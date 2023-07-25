@@ -3,6 +3,7 @@ import fs from "fs-extra";
 import {spawn} from "node:child_process";
 import formatDuration from "format-duration";
 import process from "node:process";
+import ffmpegPath from "ffmpeg-static";
 
 async function sh (...args) {
     return new Promise((resolve, reject) => {
@@ -31,7 +32,7 @@ async function sh (...args) {
 async function fixVideo (src, target) {
     await fs.ensureDir(nodePath.dirname(target));
 
-    await sh("ffmpeg", [
+    await sh(ffmpegPath, [
         "-i",
         src,
         // "-map_metadata", "-1",
@@ -113,13 +114,30 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
             // "-colorspace", "bt709",
         ];
     }
+    else if (hardware === "qsv") {
+        videoCodecArgs = [
+            // "-framerate", "30",
+            "-c:v", "h264_qsv",
+            "-crf", 28,
+            "-preset:v", "veryfast",
+            "-tune:v", "fastdecode",
+            "-profile:v", "main",        
+            "-global_quality:v", 28,
+            "-look_ahead:v", 1,
+            "-look_ahead_depth:v", 20,
+            "-look_ahead_downsampling:v", 3,
+            "-threads", 8,
+            "-async_depth", 8,
+        ];
+    }
     
 
-    await sh("ffmpeg", [
+    await sh(ffmpegPath, [
         ...preArgs,
         ...inputArgs,
         // "-f", "mp4",            
         "-pix_fmt", "yuv420p",  
+        // "-pix_fmt", "nv12",
         "-c:a", "aac",
         "-q:a", "1.68",
         // "-strict", "experimental",
@@ -127,25 +145,48 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
         ...videoCodecArgs,
         // "-threads", 8, 
         
-        "-vf", "format=yuv420p,scale=w=1280:h=1280:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,pad=1280:1280:trunc((ow-iw)/2):trunc((oh-ih)/2)",
+        "-vf", "format=yuv420p,fps=25,scale=w=1280:h=1280:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,pad=1280:1280:trunc((ow-iw)/2):trunc((oh-ih)/2)",
         "-af", "aresample=async=1",
         "-movflags", "+faststart",
         "-map_metadata", -1,
         "-write_tmcd", 0,
         "-ignore_editlist", 1,
         "-fflags", "+igndts",        
-        "-fps_mode", "vfr",
-        // "-vsync", "2",
+        // "-fps_mode", "vfr",
+        "-vsync", "vfr",
         "-y",
         target,
     ]);
 }
 
 
+async function listCodecs (codec) {
+    if (codec) {
+        return await sh(ffmpegPath, [
+            "-h", `encoder=${codec}`,
+        ]);
+    }
+    await sh(ffmpegPath, [
+        "-codecs",
+    ]);
+}
+
 async function main () {
+    const argv =  process.argv.slice(2);
+
+    if (argv.includes("--codecs")) {
+        return listCodecs();
+    }
+
+    if (argv.includes("--codec")) {
+        return listCodecs(argv?.[argv.indexOf("--codec") + 1]);
+    }
+
+
+
     const targetDir = nodePath.resolve("../target");
     const srcDir = nodePath.resolve("../src");
-    const argv =  process.argv.slice(2);
+    
     const hwArg = argv.indexOf("--hardware");
     const hardware = hwArg !== -1 ? argv[hwArg + 1] : false;
     console.log("Hardware: ", hardware);
