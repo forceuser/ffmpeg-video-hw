@@ -3,7 +3,10 @@ import fs from "fs-extra";
 import {spawn} from "node:child_process";
 import formatDuration from "format-duration";
 import process from "node:process";
-import ffmpegPath from "ffmpeg-static";
+import ffmpegLocalPath from "ffmpeg-static";
+
+let ffmpegPath = ffmpegLocalPath;
+// let ffmpegPath = "ffmpeg";
 
 async function sh (...args) {
     return new Promise((resolve, reject) => {
@@ -90,15 +93,16 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
     }
     else if (hardware === "vaapi") {
         preArgs = [
-            "-hwaccel", "vaapi",
-            // "-hwaccel_device", 0,
-            "-hwaccel_output_format", "vaapi",
+            "-hwaccel", "auto",
         ];
         videoCodecArgs = [
             "-c:v", "h264_vaapi",
         ];
     }
     else if (hardware === "videotoolbox") {
+        preArgs = [
+            "-hwaccel", "auto",
+        ];
         videoCodecArgs = [
             "-c:v", "h264_videotoolbox",
             "-crf", 28,
@@ -115,12 +119,15 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
         ];
     }
     else if (hardware === "qsv") {
+        preArgs = [
+            "-hwaccel", "auto",
+        ];
         videoCodecArgs = [
             // "-framerate", "30",
             "-c:v", "h264_qsv",
-            "-crf", 28,
+            // "-crf", 28,
             "-preset:v", "veryfast",
-            "-tune:v", "fastdecode",
+            // "-tune:v", "fastdecode",
             "-profile:v", "main",        
             "-global_quality:v", 28,
             "-look_ahead:v", 1,
@@ -130,13 +137,33 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
             "-async_depth", 8,
         ];
     }
+    else if (hardware === "soft") {
+        videoCodecArgs = [
+            "-c:v", "libx264",
+            "-crf", 28,
+            "-threads", 8,
+            "-maxrate", "20M",
+            "-bufsize", "25M",
+            "-preset:v", "veryfast",
+            "-tune:v", "fastdecode",
+            "-profile:v", "main",
+            "-level:v", "4.0",
+            // "-color_primaries", "bt709",
+            // "-color_trc", "bt709",
+            // "-colorspace", "bt709",
+        ];
+    }
+    else {
+        console.log("wrong hardware setting", hardware);
+        return;
+    }
     
 
     await sh(ffmpegPath, [
         ...preArgs,
         ...inputArgs,
         // "-f", "mp4",            
-        "-pix_fmt", "yuv420p",  
+        // "-pix_fmt", "yuv420p",  
         // "-pix_fmt", "nv12",
         "-c:a", "aac",
         "-q:a", "1.68",
@@ -145,7 +172,7 @@ async function encodeVideo (src, target, {hardware = false} = {}) {
         ...videoCodecArgs,
         // "-threads", 8, 
         
-        "-vf", "format=yuv420p,fps=25,scale=w=1280:h=1280:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,pad=1280:1280:trunc((ow-iw)/2):trunc((oh-ih)/2)",
+        "-vf", "format=yuv420p|nv12,fps=25,scale=w=1280:h=1280:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2,pad=1280:1280:trunc((ow-iw)/2):trunc((oh-ih)/2)",
         "-af", "aresample=async=1",
         "-movflags", "+faststart",
         "-map_metadata", -1,
